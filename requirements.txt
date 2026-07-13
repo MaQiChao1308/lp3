@@ -1,0 +1,14 @@
+# Framework web para rotas e APIs
+fastapi>=0.100.0
+
+# Servidor para rodar o FastAPI
+uvicorn>=0.22.0
+
+# Leitura e manipulação rápida de CSVs com Pandas
+pandas>=2.0.0
+
+# Cliente HTTP assíncrono para comunicação entre servidores
+httpx>=0.24.0
+
+# Carregamento de variáveis do arquivo .env
+python-dotenv>=1.0.0
