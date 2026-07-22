@@ -1,41 +1,22 @@
 import os
-import pandas as pd
-from app.config import DATA_FILE_PATH, SERVER_ID
+import sqlite3
+from app.config import DATABASE_PATH, SERVER_ID
 
 class DataLoader:
     def __init__(self):
-        # Inicializa um DataFrame vazio para evitar erros caso os dados não carreguem
-        self.df = pd.DataFrame(columns=['Date/Time', 'Lat', 'Lon', 'Base', 'datetime'])
+        self.db_path = DATABASE_PATH
 
     def load_data(self):
-        """Lê o arquivo CSV local e o carrega na memória RAM."""
-        if not DATA_FILE_PATH:
-            print(f"[{SERVER_ID}] Erro: DATA_FILE_PATH não configurado.")
+        """Verifica se o banco de dados SQLite existe e está pronto."""
+        if not os.path.exists(self.db_path):
+            print(f"[{SERVER_ID}] Aviso: Banco de dados não encontrado em {self.db_path}. Execute 'python -m app.init_db' para inicializar.")
             return
 
-        # Verifica se o arquivo CSV de fato existe no caminho indicado
-        if not os.path.exists(DATA_FILE_PATH):
-            print(f"[{SERVER_ID}] Erro: Arquivo de dados não encontrado em {DATA_FILE_PATH}")
-            return
-
-        print(f"[{SERVER_ID}] Carregando dados locais de: {DATA_FILE_PATH}...")
-        try:
-            # Lê o arquivo CSV
-            self.df = pd.read_csv(DATA_FILE_PATH)
-            
-            # Converte a coluna Date/Time para o tipo datetime de forma rápida usando formato específico
-            self.df['datetime'] = pd.to_datetime(self.df['Date/Time'], format="%m/%d/%Y %H:%M:%S", errors='coerce')
-            
-            # Remove registros com data inválida
-            self.df = self.df.dropna(subset=['datetime'])
-            
-            print(f"[{SERVER_ID}] Carregamento concluído! {len(self.df)} registros carregados.")
-        except Exception as e:
-            print(f"[{SERVER_ID}] Falha ao carregar arquivo CSV: {e}")
+        print(f"[{SERVER_ID}] Conectado com sucesso ao banco de dados SQLite: {self.db_path}")
 
     def get_local_summary(self, start_date, end_date, base=None):
-        """Filtra e agrega os dados locais no período selecionado (start_date e end_date inclusive)."""
-        if self.df.empty:
+        """Filtra e agrega os dados locais no SQLite usando consultas SQL otimizadas por índice."""
+        if not os.path.exists(self.db_path):
             return {
                 "pickup_count": 0,
                 "base_counts": {},
@@ -43,16 +24,33 @@ class DataLoader:
                 "last_pickup": None
             }
 
-        # Filtra por intervalo de datas (comparando apenas a data YYYY-MM-DD, ignorando a hora)
-        mask = (self.df['datetime'].dt.date >= start_date) & (self.df['datetime'].dt.date <= end_date)
-        filtered_df = self.df[mask]
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
 
-        # Se o cliente filtrou por uma base específica (ex: B02512)
+        # Ajusta datas para cobrir o dia completo em formato ISO (YYYY-MM-DD HH:MM:SS)
+        start_str = f"{start_date} 00:00:00"
+        end_str = f"{end_date} 23:59:59"
+
+        # 1. Consulta principal: contagem total, primeiro e último pickup no período
+        query_main = """
+            SELECT COUNT(*) as pickup_count,
+                   MIN(datetime) as first_pickup,
+                   MAX(datetime) as last_pickup
+            FROM rides
+            WHERE datetime >= ? AND datetime <= ?
+        """
+        params = [start_str, end_str]
         if base:
-            filtered_df = filtered_df[filtered_df['Base'] == base]
+            query_main += " AND base = ?"
+            params.append(base)
 
-        # Caso não haja nenhuma viagem no período/filtros selecionados
-        if filtered_df.empty:
+        cursor.execute(query_main, params)
+        res_main = cursor.fetchone()
+
+        pickup_count = res_main['pickup_count'] if res_main else 0
+        if not res_main or pickup_count == 0:
+            conn.close()
             return {
                 "pickup_count": 0,
                 "base_counts": {},
@@ -60,18 +58,30 @@ class DataLoader:
                 "last_pickup": None
             }
 
-        # Agrega a contagem de viagens por base TLC
-        base_counts = filtered_df['Base'].value_counts().to_dict()
+        # 2. Consulta para agregação de contagens por base TLC
+        query_bases = """
+            SELECT base, COUNT(*) as count
+            FROM rides
+            WHERE datetime >= ? AND datetime <= ?
+        """
+        params_bases = [start_str, end_str]
+        if base:
+            query_bases += " AND base = ?"
+            params_bases.append(base)
+        query_bases += " GROUP BY base"
 
-        # Encontra a primeira e a última viagem no período
-        first_dt = filtered_df['datetime'].min()
-        last_dt = filtered_df['datetime'].max()
+        cursor.execute(query_bases, params_bases)
+        res_bases = cursor.fetchall()
+
+        base_counts = {row['base']: row['count'] for row in res_bases}
+
+        conn.close()
 
         return {
-            "pickup_count": len(filtered_df),
+            "pickup_count": pickup_count,
             "base_counts": base_counts,
-            "first_pickup": first_dt.strftime("%Y-%m-%d %H:%M:%S"),
-            "last_pickup": last_dt.strftime("%Y-%m-%d %H:%M:%S")
+            "first_pickup": res_main['first_pickup'],
+            "last_pickup": res_main['last_pickup']
         }
 
 # Instância global única para ser importada no restante do sistema

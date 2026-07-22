@@ -15,6 +15,9 @@ DATA_END = datetime.strptime(os.getenv("DATA_END", "2014-06-30"), "%Y-%m-%d").da
 # Caminho do arquivo CSV de dados locais
 DATA_FILE_PATH = os.getenv("DATA_FILE_PATH", "data/uber-raw-data-jun14.csv")
 
+# Caminho do banco de dados SQLite local
+DATABASE_PATH = os.getenv("DATABASE_PATH", "data/uber-jun14.db")
+
 # Processa a string de servidores conhecidos em uma lista
 KNOWN_SERVERS_STR = os.getenv("KNOWN_SERVERS", "")
 KNOWN_SERVERS = [
