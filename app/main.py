@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import date
 from fastapi import FastAPI, HTTPException, Query
-from app.config import SERVER_ID
+from app.config import SERVER_ID, DATA_START, DATA_END, KNOWN_SERVERS
 from app.data_loader import data_loader
 
 # 1. Configuração do ciclo de vida (Lifespan)
@@ -25,6 +25,26 @@ app = FastAPI(
 def health():
     return {"status": "ok", "server_id": SERVER_ID}
 
+# Rota de Metadados: retorna informações sobre a partição local e vizinhos
+@app.get("/metadata")
+def metadata():
+    months_pt = {
+        1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril", 5: "maio", 6: "junho",
+        7: "julho", 8: "agosto", 9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"
+    }
+    month_name = months_pt.get(DATA_START.month, "local")
+    partition_description = f"Dados de {month_name}/{DATA_START.year}"
+    
+    return {
+        "server_id": SERVER_ID,
+        "owns": {
+            "date_start": DATA_START.strftime("%Y-%m-%d"),
+            "date_end": DATA_END.strftime("%Y-%m-%d"),
+            "partition_description": partition_description
+        },
+        "known_servers": KNOWN_SERVERS
+    }
+
 # 4. Rota Local: responde consultas sobre a partição local de dados
 @app.get("/local/summary")
 def local_summary(
@@ -45,5 +65,6 @@ def local_summary(
     return {
         "server_id": SERVER_ID,
         "scope": "local",
+        "complete": True,
         "result": resultado
     }

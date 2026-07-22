@@ -23,9 +23,8 @@ class DataLoader:
             # Lê o arquivo CSV
             self.df = pd.read_csv(DATA_FILE_PATH)
             
-            # Converte a coluna Date/Time para o tipo datetime do Pandas
-            # format='mixed' ajuda a tratar variações de formato de data se existirem
-            self.df['datetime'] = pd.to_datetime(self.df['Date/Time'], format='mixed', errors='coerce')
+            # Converte a coluna Date/Time para o tipo datetime de forma rápida usando formato específico
+            self.df['datetime'] = pd.to_datetime(self.df['Date/Time'], format="%m/%d/%Y %H:%M:%S", errors='coerce')
             
             # Remove registros com data inválida
             self.df = self.df.dropna(subset=['datetime'])
