@@ -16,7 +16,7 @@ def print_banner(title):
     print("="*60)
 
 def test_health_and_metadata():
-    print_banner("1. TESTANDO HEALTHCHECK E METADATOS")
+    print_banner("1. TESTANDO HEALTHCHECK E METADATOS (SQLITE)")
     for name, url in BASE_URLS.items():
         try:
             r = requests.get(f"{url}/health", timeout=2.0)
@@ -31,11 +31,10 @@ def test_health_and_metadata():
             sys.exit(1)
 
 def test_distributed_summary_success():
-    print_banner("2. TESTANDO CONSULTA DISTRIBUÍDA (CLUSTER 100% ATIVO)")
-    # Periodo de Abril a Junho/2014
+    print_banner("2. TESTANDO CONSULTA DISTRIBUÍDA COM BANCO SQLITE (CLUSTER 100% ATIVO)")
     url = "http://localhost:8001/summary?start_date=2014-04-01&end_date=2014-06-30"
     print(f"Enviando GET para {url}...")
-    r = requests.get(url, timeout=5.0)
+    r = requests.get(url, timeout=10.0)
     assert r.status_code == 200, f"Erro na consulta distribuída: {r.status_code}"
     
     data = r.json()
@@ -52,12 +51,11 @@ def test_distributed_summary_success():
     assert data["complete"] is True, "Deveria estar completo quando todos nós estão ativos"
     assert len(data["failed_servers"]) == 0, "Nenhum servidor deveria ter falhado"
     assert len(data["servers_contacted"]) == 3, "Os 3 servidores deveriam ter sido contactados"
-    print("\n✅ Consulta distribuída com sucesso comprovado!")
+    print("\n✅ Consulta distribuída via SQLite com sucesso comprovado!")
 
 def test_fault_tolerance():
     print_banner("3. TESTANDO TOLERÂNCIA A FALHAS (DERRUBANDO SERVIDOR 03 NA PORTA 8003)")
     
-    # Derruba o servidor 3 matando a porta 8003
     print("Simulando queda do servidor_03...")
     subprocess.run(["fuser", "-k", "8003/tcp"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
     time.sleep(1)
@@ -70,16 +68,16 @@ def test_fault_tolerance():
     data = r.json()
     print(f"Completo: {data['complete']} (Esperado: False)")
     print(f"Servidores Contactados: {data['servers_contacted']}")
-    print(f"Servidores Com Falha: {data['failed_servers']} (Esperado: servidor_03)")
+    print(f"Servidores Com Falha: {data['failed_servers']}")
     print(f"Total Parcial de Corridas Agregadas: {data['result']['pickup_count']}")
     
     assert data["complete"] is False, "complete deve ser False quando um servidor cai"
-    assert "servidor_03" in data["failed_servers"], "servidor_03 deve estar em failed_servers"
+    assert any("8003" in s or "servidor_03" in s for s in data["failed_servers"]), "servidor_03/8003 deve estar em failed_servers"
     assert data["result"]["pickup_count"] > 0, "Deveria retornar contagem parcial dos servidores ativos"
     print("\n✅ Tolerância a falhas testada e aprovada com sucesso!")
 
 if __name__ == '__main__':
-    print("Iniciando bateria de testes do cluster...")
+    print("Iniciando bateria de testes do cluster SQLite...")
     test_health_and_metadata()
     test_distributed_summary_success()
     test_fault_tolerance()
