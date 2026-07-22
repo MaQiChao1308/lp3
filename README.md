@@ -1,4 +1,4 @@
-# UNEB - LPIII: Sistema Distribuído de Consultas com Dataset Uber
+# LPIII: Sistema Distribuído de Consultas com Dataset Uber
 
 Este repositório contém a implementação do trabalho prático da disciplina de **Linguagem de Programação III (LPIII)** na **UNEB**. 
 
