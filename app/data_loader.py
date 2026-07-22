@@ -7,15 +7,28 @@ class DataLoader:
         self.db_path = DATABASE_PATH
 
     def load_data(self):
-        """Verifica se o banco de dados SQLite existe e está pronto."""
+        """Verifica se o banco de dados SQLite existe e está pronto; se não existir, cria e popula automaticamente."""
         if not os.path.exists(self.db_path):
-            print(f"[{SERVER_ID}] Aviso: Banco de dados não encontrado em {self.db_path}. Execute 'python -m app.init_db' para inicializar.")
-            return
+            print(f"[{SERVER_ID}] Banco de dados não encontrado em {self.db_path}. Criando e populando banco SQLite automaticamente...")
+            try:
+                from app.init_db import init_db
+                init_db()
+            except Exception as e:
+                print(f"[{SERVER_ID}] Erro ao inicializar banco de dados SQLite automaticamente: {e}")
+                return
 
         print(f"[{SERVER_ID}] Conectado com sucesso ao banco de dados SQLite: {self.db_path}")
 
     def get_local_summary(self, start_date, end_date, base=None):
         """Filtra e agrega os dados locais no SQLite usando consultas SQL otimizadas por índice."""
+        if not os.path.exists(self.db_path):
+            # Se ainda não existir por algum motivo, tenta inicializar de forma defensiva
+            try:
+                from app.init_db import init_db
+                init_db()
+            except Exception:
+                pass
+                
         if not os.path.exists(self.db_path):
             return {
                 "pickup_count": 0,
