@@ -3,5 +3,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .logs/
+.cluster.pid
 .venv/
 venv/
+
+# Ignorar datasets CSV gerados para testes locais
+data/uber-raw-data-apr14.csv
+data/uber-raw-data-may14.csv
