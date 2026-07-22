@@ -6,7 +6,7 @@ O objetivo do projeto é construir um sistema distribuído de servidores HTTP us
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## Tecnologias Utilizadas
 * **Linguagem:** Python 3.12+
 * **Framework Web:** [FastAPI](https://fastapi.tiangolo.com/)
 * **Servidor ASGI:** [Uvicorn](https://www.uvicorn.org/)
@@ -17,7 +17,7 @@ O objetivo do projeto é construir um sistema distribuído de servidores HTTP us
 
 ---
 
-## 📂 Estrutura do Projeto
+## Estrutura do Projeto
 ```text
 .
 ├── app/
@@ -38,7 +38,7 @@ O objetivo do projeto é construir um sistema distribuído de servidores HTTP us
 
 ---
 
-## ⚙️ Configuração e Variáveis de Ambiente
+## Configuração e Variáveis de Ambiente
 
 O comportamento de cada servidor (nó) é definido através de um arquivo `.env` localizado na raiz do projeto. Duplique o arquivo `.env.example` para `.env`:
 
@@ -56,7 +56,7 @@ Campos configuráveis no `.env`:
 
 ---
 
-## 🚀 Como Executar
+## Como Executar
 
 ### 1. Pré-requisitos
 Certifique-se de ter o Python 3 instalado. Criar e ativar o ambiente virtual:
@@ -88,7 +88,7 @@ python -m uvicorn app.main:app --port 8001 --reload
 
 ---
 
-## 📡 Endpoints da API
+## Endpoints da API
 
 ### `GET /health`
 Verifica se o servidor está ativo.
@@ -216,7 +216,7 @@ Executa a consulta de forma **distribuída**. O servidor que recebe esta chamada
 
 ---
 
-## 🌐 Estratégia de Particionamento e Descoberta
+## Estratégia de Particionamento e Descoberta
 
 * **Particionamento por Mês:** O dataset de corridas do Uber (2014) é segmentado por mês. Cada nó gerencia seu próprio arquivo de dados ou banco SQLite local (ex: servidor 1 gerencia abril, servidor 2 gerencia maio, servidor 3 gerencia junho, etc.).
 * **Descoberta de Nós & Roteamento Inteligente:** O coordenador lê os servidores conhecidos através da lista `KNOWN_SERVERS`. Antes de consultar os outros nós, o coordenador analisa se o período pesquisado se sobrepõe à partição do nó vizinho, evitando tráfego de rede desnecessário.
