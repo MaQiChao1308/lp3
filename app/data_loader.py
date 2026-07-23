@@ -97,5 +97,38 @@ class DataLoader:
             "last_pickup": res_main['last_pickup']
         }
 
+    def get_local_heatmap(self, start_date, end_date, base=None, limit=2000):
+        """Retorna pontos de latitude/longitude agrupados por grade geográfica para o mapa de calor."""
+        if not os.path.exists(self.db_path):
+            return []
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        start_str = f"{start_date} 00:00:00"
+        end_str = f"{end_date} 23:59:59"
+
+        query = """
+            SELECT ROUND(lat, 3) as lat,
+                   ROUND(lon, 3) as lon,
+                   COUNT(*) as count
+            FROM rides
+            WHERE datetime >= ? AND datetime <= ? AND lat IS NOT NULL AND lon IS NOT NULL
+        """
+        params = [start_str, end_str]
+        if base:
+            query += " AND base = ?"
+            params.append(base)
+
+        query += " GROUP BY ROUND(lat, 3), ROUND(lon, 3) ORDER BY count DESC LIMIT ?"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [[row['lat'], row['lon'], row['count']] for row in rows]
+
 # Instância global única para ser importada no restante do sistema
 data_loader = DataLoader()

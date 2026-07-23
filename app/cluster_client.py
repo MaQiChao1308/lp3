@@ -135,3 +135,60 @@ async def fetch_remote_summaries(
         ]
         results = await asyncio.gather(*tasks)
         return list(results)
+
+async def query_remote_heatmap_node(
+    client: httpx.AsyncClient,
+    server_url: str,
+    start_date: date,
+    end_date: date,
+    base: Optional[str]
+) -> Dict[str, Any]:
+    """Consulta o endpoint /local/heatmap de um nó remoto."""
+    server_url_clean = server_url.rstrip('/')
+    metadata = await fetch_node_metadata(client, server_url_clean)
+    server_id = None
+    if metadata:
+        server_id = metadata.get("server_id")
+        owns = metadata.get("owns", {})
+        try:
+            node_start = datetime.strptime(owns.get("date_start"), "%Y-%m-%d").date()
+            node_end = datetime.strptime(owns.get("date_end"), "%Y-%m-%d").date()
+            if end_date < node_start or start_date > node_end:
+                return {"server_id": server_id, "success": True, "points": []}
+        except Exception:
+            pass
+
+    if not server_id:
+        server_id = server_url_clean.replace("http://", "").replace("https://", "")
+
+    params = {
+        "start_date": start_date.strftime("%Y-%m-%d"),
+        "end_date": end_date.strftime("%Y-%m-%d")
+    }
+    if base:
+        params["base"] = base
+
+    try:
+        response = await client.get(f"{server_url_clean}/local/heatmap", params=params, timeout=3.0)
+        if response.status_code == 200:
+            data = response.json()
+            return {"server_id": data.get("server_id", server_id), "success": True, "points": data.get("points", [])}
+        return {"server_id": server_id, "success": False, "points": []}
+    except Exception:
+        return {"server_id": server_id, "success": False, "points": []}
+
+async def fetch_remote_heatmaps(
+    known_servers: List[str],
+    start_date: date,
+    end_date: date,
+    base: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Dispara chamadas assíncronas paralelas de heatmap para os servidores conhecidos."""
+    if not known_servers:
+        return []
+    async with httpx.AsyncClient() as client:
+        tasks = [
+            query_remote_heatmap_node(client, server_url, start_date, end_date, base)
+            for server_url in known_servers
+        ]
+        return list(await asyncio.gather(*tasks))

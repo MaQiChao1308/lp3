@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uber NY - Mapa de Calor & Dashboard Distribuído</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        #map {
+            flex: 1;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Painel Lateral */
+        .sidebar {
+            width: 380px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            gap: 20px;
+            z-index: 10;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-icon {
+            font-size: 28px;
+            background: linear-gradient(135deg, #ef4444, #f97316);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .header p {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #cbd5e1;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: #1e293b;
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+
+        .btn-submit {
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .btn-submit:hover {
+            opacity: 0.95;
+        }
+
+        .btn-submit:active {
+            transform: scale(0.98);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #38bdf8;
+            margin-top: 4px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        .badges-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            font-weight: 500;
+        }
+
+        .badge-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-complete {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+
+        .badge-partial {
+            background: rgba(234, 179, 8, 0.2);
+            color: #fde047;
+            border: 1px solid rgba(234, 179, 8, 0.4);
+        }
+
+        /* Spinner Loading */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="header">
+            <div class="header-icon">🔥</div>
+            <div>
+                <h2>Uber NY Heatmap</h2>
+                <p>Sistema Distribuído de Consultas</p>
+            </div>
+        </div>
+
+        <form id="filterForm" onsubmit="event.preventDefault(); updateDashboard();">
+            <div class="form-group">
+                <label>Modo de Consulta</label>
+                <select id="mode">
+                    <option value="distributed">🌐 Distribuído (Cluster Completo)</option>
+                    <option value="local">🖥️ Local (Apenas este Nó)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Data Inicial</label>
+                <input type="date" id="startDate" value="2014-04-01">
+            </div>
+
+            <div class="form-group">
+                <label>Data Final</label>
+                <input type="date" id="endDate" value="2014-06-30">
+            </div>
+
+            <div class="form-group">
+                <label>Filtro por Base TLC (Opcional)</label>
+                <select id="base">
+                    <option value="">Todas as Bases</option>
+                    <option value="B02512">B02512</option>
+                    <option value="B02598">B02598</option>
+                    <option value="B02617">B02617</option>
+                    <option value="B02682">B02682</option>
+                    <option value="B02764">B02764</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btnSubmit">
+                <span>Atualizar Mapa</span>
+            </button>
+        </form>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Corridas</div>
+                <div class="stat-value" id="statPickups">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Células de Grade</div>
+                <div class="stat-value" id="statCells">0</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Status da Resposta</div>
+            <div style="margin-top: 6px;">
+                <span id="statusBadge" class="badge-status badge-complete">Carregando...</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Servidores Consultados</div>
+            <div class="badges-container" id="serversContacted">
+                <span class="badge">Nenhum</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS & Leaflet Heat Plugin -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <script>
+        // Inicializa o Mapa em Nova York (Manhattan)
+        const map = L.map('map').setView([40.730610, -73.935242], 11);
+
+        // Adiciona a camada de mapa escuro do CartoDB Dark Matter
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        }).addTo(map);
+
+        let heatLayer = null;
+
+        async function updateDashboard() {
+            const btnSubmit = document.getElementById('btnSubmit');
+            btnSubmit.innerHTML = '<span class="spinner"></span> <span>Consultando...</span>';
+            btnSubmit.disabled = true;
+
+            const mode = document.getElementById('mode').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const base = document.getElementById('base').value;
+
+            const heatmapEndpoint = mode === 'distributed' ? '/heatmap' : '/local/heatmap';
+            const summaryEndpoint = mode === 'distributed' ? '/summary' : '/local/summary';
+
+            let queryParams = `start_date=${startDate}&end_date=${endDate}`;
+            if (base) queryParams += `&base=${base}`;
+
+            try {
+                // 1. Busca os pontos geográficos do Mapa de Calor
+                const heatRes = await fetch(`${heatmapEndpoint}?${queryParams}`);
+                const heatData = await heatRes.json();
+
+                // 2. Busca o resumo estatístico para o painel lateral
+                const sumRes = await fetch(`${summaryEndpoint}?${queryParams}`);
+                const sumData = await sumRes.json();
+
+                // Atualiza contadores
+                const pickupCount = sumData.result ? sumData.result.pickup_count : 0;
+                document.getElementById('statPickups').innerText = pickupCount.toLocaleString('pt-BR');
+                document.getElementById('statCells').innerText = (heatData.points ? heatData.points.length : 0).toLocaleString('pt-BR');
+
+                // Atualiza Status
+                const statusBadge = document.getElementById('statusBadge');
+                if (sumData.complete !== false) {
+                    statusBadge.innerText = '✅ Resposta Completa';
+                    statusBadge.className = 'badge-status badge-complete';
+                } else {
+                    statusBadge.innerText = '⚠️ Parcial (Falha Remota)';
+                    statusBadge.className = 'badge-status badge-partial';
+                }
+
+                // Atualiza Servidores Contactados
+                const serversContainer = document.getElementById('serversContacted');
+                serversContainer.innerHTML = '';
+                const servers = sumData.servers_contacted || [sumData.server_id || 'local'];
+                servers.forEach(s => {
+                    const b = document.createElement('span');
+                    b.className = 'badge';
+                    b.innerText = s;
+                    serversContainer.appendChild(b);
+                });
+
+                // Atualiza a Camada do Mapa de Calor
+                if (heatLayer) map.removeLayer(heatLayer);
+
+                if (heatData.points && heatData.points.length > 0) {
+                    // Encontra a intensidade máxima para normalização do gradiente
+                    const maxIntensity = Math.max(...heatData.points.map(p => p[2]));
+                    heatLayer = L.heatLayer(heatData.points, {
+                        radius: 18,
+                        blur: 14,
+                        maxZoom: 14,
+                        max: maxIntensity,
+                        gradient: { 0.2: '#0284c7', 0.4: '#38bdf8', 0.6: '#eab308', 0.8: '#f97316', 1.0: '#ef4444' }
+                    }).addTo(map);
+                }
+            } catch (err) {
+                console.error("Erro ao atualizar o dashboard:", err);
+                alert("Falha ao comunicar com o servidor. Verifique se a API está rodando.");
+            } finally {
+                btnSubmit.innerHTML = '<span>Atualizar Mapa</span>';
+                btnSubmit.disabled = false;
+            }
+        }
+
+        // Carrega o dashboard na inicialização
+        updateDashboard();
+    </script>
+</body>
+</html>

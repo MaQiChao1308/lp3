@@ -1,10 +1,13 @@
+import os
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.config import SERVER_ID, DATA_START, DATA_END, KNOWN_SERVERS
 from app.data_loader import data_loader
-from app.cluster_client import fetch_remote_summaries
+from app.cluster_client import fetch_remote_summaries, fetch_remote_heatmaps
 
 # 1. Configuração do ciclo de vida (Lifespan)
 @asynccontextmanager
@@ -19,6 +22,18 @@ app = FastAPI(
     title=f"Uber Query Service ({SERVER_ID})",
     lifespan=lifespan
 )
+
+# Montagem de arquivos estáticos para a interface Web Dashboard
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.get("/")
+def read_index():
+    index_file = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"message": f"Uber Query Service ({SERVER_ID}) está ativo. Acesse /docs para a API."}
 
 # 3. Rota de Healthcheck: para verificar se a API está no ar
 @app.get("/health")
@@ -153,4 +168,69 @@ async def summary(
             "first_pickup": first_pickup,
             "last_pickup": last_pickup
         }
+    }
+
+# 6. Rotas de Mapa de Calor (Heatmap)
+@app.get("/local/heatmap")
+def local_heatmap(
+    start_date: date = Query(..., description="Data inicial do período (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="Data final do período (YYYY-MM-DD)"),
+    base: Optional[str] = Query(None, description="Código da base TLC (ex: B02512) - Opcional")
+):
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="A data inicial (start_date) não pode ser maior que a data final (end_date)."
+        )
+    points = data_loader.get_local_heatmap(start_date, end_date, base)
+    return {
+        "server_id": SERVER_ID,
+        "scope": "local",
+        "complete": True,
+        "points": points
+    }
+
+@app.get("/heatmap")
+async def distributed_heatmap(
+    start_date: date = Query(..., description="Data inicial do período (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="Data final do período (YYYY-MM-DD)"),
+    base: Optional[str] = Query(None, description="Código da base TLC (ex: B02512) - Opcional")
+):
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="A data inicial (start_date) não pode ser maior que a data final (end_date)."
+        )
+
+    merged_grid: Dict[tuple, int] = {}
+    servers_contacted: List[str] = []
+
+    # 6.1 Processamento Local
+    local_overlaps = not (end_date < DATA_START or start_date > DATA_END)
+    if local_overlaps:
+        local_points = data_loader.get_local_heatmap(start_date, end_date, base)
+        for p in local_points:
+            key = (p[0], p[1])
+            merged_grid[key] = merged_grid.get(key, 0) + p[2]
+        servers_contacted.append(SERVER_ID)
+
+    # 6.2 Processamento Remoto Concorrente
+    if KNOWN_SERVERS:
+        remote_resps = await fetch_remote_heatmaps(KNOWN_SERVERS, start_date, end_date, base)
+        for resp in remote_resps:
+            if resp.get("success"):
+                s_id = resp.get("server_id")
+                if s_id and s_id not in servers_contacted:
+                    servers_contacted.append(s_id)
+                for p in resp.get("points", []):
+                    key = (p[0], p[1])
+                    merged_grid[key] = merged_grid.get(key, 0) + p[2]
+
+    final_points = [[lat, lon, count] for (lat, lon), count in merged_grid.items()]
+
+    return {
+        "coordinator": SERVER_ID,
+        "scope": "distributed",
+        "servers_contacted": sorted(servers_contacted),
+        "points": final_points
     }
